@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found</title>
+<script>
+// Old council site addresses (benkelly97.github.io/cincinnati-council/...) arrive here as
+// bkkelly.com/cincinnati-council/...; send them to the same page under /council/.
+(function () {
+  var p = location.pathname;
+  var m = p.match(/^\/cincinnati-council(\/.*)?$/i);
+  if (m) location.replace('/council' + (m[1] || '/') + location.search + location.hash);
+})();
+</script>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 16px; }
+</style>
+</head>
+<body>
+<h1>Page not found</h1>
+<p>The Cincinnati City Council legislative record is at <a href="/council/">bkkelly.com/council/</a>.</p>
+</body>
+</html>
