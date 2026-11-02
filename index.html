@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1c1a" media="(prefers-color-scheme: dark)">
+<title>bkkelly.com</title>
+<meta name="description" content="Cincinnati City Council legislative record and related projects.">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;
+  --bg2:#f7f6f3;
+  --text:#1a1a18;
+  --text2:#5a5a55;
+  --text3:#9a9a92;
+  --border:#e0dfd8;
+  --accent:#2255cc;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1c1a;
+    --bg2:#242422;
+    --text:#f0efe8;
+    --text2:#a0a098;
+    --text3:#6a6a64;
+    --border:#3a3a36;
+    --accent:#6b9bf0;
+  }
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+main{max-width:720px;margin:0 auto;padding:56px 16px 64px}
+h1{font-size:22px;font-weight:600;letter-spacing:-0.01em}
+.lede{color:var(--text2);margin-top:6px;font-size:15px}
+.card{display:block;margin-top:32px;padding:20px 22px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);text-decoration:none;color:inherit;transition:border-color .15s}
+.card:hover,.card:focus-visible{border-color:var(--accent);outline:none}
+.card h2{font-size:17px;font-weight:600}
+.card h2 span{color:var(--accent)}
+.card p{color:var(--text2);font-size:14px;margin-top:6px}
+.links{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;font-size:14px}
+.links a{color:var(--accent);text-decoration:none}
+.links a:hover{text-decoration:underline}
+footer{margin-top:48px;color:var(--text3);font-size:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>bkkelly.com</h1>
+
+  <a class="card" href="/council/">
+    <h2>Cincinnati City Council <span>&rarr;</span></h2>
+    <p>Legislative record from 2018: agenda items with plain-language titles, roll call votes, meetings and Legislative Agent registrations, from Legistar and updated daily.</p>
+  </a>
+  <div class="links">
+    <a href="/council/agenda.html">Meetings</a>
+    <a href="/council/alternative.html">Roll call votes</a>
+    <a href="/council/members.html">Member records</a>
+    <a href="/council/agents.html">Legislative Agents</a>
+    <a href="/council/about.html">About the data</a>
+  </div>
+
+  <footer>Not an official City of Cincinnati site.</footer>
+</main>
+</body>
+</html>
