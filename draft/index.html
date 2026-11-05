@@ -89,8 +89,17 @@ header .sub { color: var(--muted); max-width: 52ch; margin: 6px 0 0; }
 .confirm .row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .edit { padding: 0 10px 10px; display: grid; gap: 6px; }
 .edit input { width: 100%; font-size: .88rem; padding: 4px 8px; }
-.edit .row { display: flex; gap: 6px; }
+.edit .row { display: flex; flex-wrap: wrap; gap: 6px; }
 .edit button { flex: 1; padding: 3px 6px; font-size: .78rem; }
+dialog.framer { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); padding: 18px; width: min(92vw, 360px); }
+dialog.framer::backdrop { background: rgba(5, 8, 20, .6); }
+.fbody { display: grid; gap: 12px; }
+.fbody h3 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 1.4rem; text-transform: uppercase; }
+.fbody .hint { margin: 0; font-size: .85rem; color: var(--muted); }
+#framerCanvas { width: 100%; max-width: 260px; aspect-ratio: 4 / 5; display: block; margin: 0 auto; border-radius: 8px; cursor: grab; touch-action: none; background: var(--taken); }
+#framerCanvas:active { cursor: grabbing; }
+.zoomrow { display: flex; gap: 10px; align-items: center; font-size: .9rem; color: var(--muted); }
+.zoomrow input { flex: 1; accent-color: var(--accent); }
 .drop { border: 1px dashed var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 8px; }
 .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 label.filebtn { display: inline-block; cursor: pointer; border-radius: 6px; background: var(--accent); color: var(--accent-ink); padding: 6px 12px; font-weight: 600; }
@@ -191,6 +200,20 @@ details.commish > summary { cursor: pointer; padding: 14px 18px; font-family: va
   </details>
   <input type="file" id="replacePhoto" accept="image/*" class="sr" tabindex="-1" aria-hidden="true">
 </div>
+<dialog id="framer" class="framer" aria-labelledby="framerTitle">
+  <div class="fbody">
+    <h3 id="framerTitle">Adjust photo</h3>
+    <p class="hint">Drag the photo to recenter it. Use the slider to zoom in or out.</p>
+    <canvas id="framerCanvas" width="320" height="400" aria-label="Photo preview"></canvas>
+    <label class="zoomrow">Zoom out <input type="range" id="framerZoom" min="0" max="1000" step="1" aria-label="Zoom"> In</label>
+    <div class="btnrow">
+      <button type="button" data-fr="reset">Reset</button>
+      <span style="flex:1"></span>
+      <button type="button" data-fr="cancel">Cancel</button>
+      <button type="button" class="primary" data-fr="save">Save</button>
+    </div>
+  </div>
+</dialog>
 <div id="toast" class="toast" hidden></div>
 
 <script type="module">
@@ -319,7 +342,8 @@ function renderWall() {
     const conf = confirming === x.id && pickable ? `<div class="confirm"><p>Draft ${esc(x.name)}${onClock !== mySeat() ? ` for ${esc(drafterName(onClock))}` : ""}?</p>
       <div class="row"><button type="button" class="primary" data-act="confirm" data-id="${x.id}">Draft</button><button type="button" data-act="cancel">Cancel</button></div></div>` : "";
     const edit = editing ? `<div class="edit"><input type="text" id="cn-${x.id}" data-act="rename" data-id="${x.id}" value="${esc(x.name)}" aria-label="Candidate name">
-      <div class="row"><button type="button" data-act="photo" data-id="${x.id}">Photo</button>
+      <div class="row"><button type="button" data-act="adjust" data-id="${x.id}" ${x.img ? "" : "disabled"}>Adjust</button>
+      <button type="button" data-act="photo" data-id="${x.id}">Replace</button>
       <button type="button" class="${armed === "rm-" + x.id ? "armed" : "danger"}" data-act="remove" data-id="${x.id}">${armed === "rm-" + x.id ? "Confirm" : "Remove"}</button></div></div>` : "";
     return `<div class="card ${p ? "drafted" : ""} ${pickable ? "pickable" : ""}" ${pickable ? `data-act="pick" data-id="${x.id}" role="button" tabindex="0" aria-label="Draft ${esc(x.name)}"` : ""}>
       <div class="photo">${photo}</div><div class="cname">${esc(x.name)}</div>${edit}${ribbon}${conf}</div>`;
@@ -422,23 +446,62 @@ function nameFromFile(f) {
   return f.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim()
     .replace(/\b\w/g, ch => ch.toUpperCase()) || "New candidate";
 }
-// Center-crop to 4:5 (biased toward the top, where faces usually are) and shrink so each photo stays small.
-function toPortrait(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file), img = new Image();
-    img.onload = () => {
-      const W = 320, H = 400, w = img.naturalWidth, h = img.naturalHeight;
-      let sw = w, sh = w * H / W;
-      if (sh > h) { sh = h; sw = h * W / H; }
-      const sx = (w - sw) / 2, sy = (h - sh) * 0.2;
-      const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
-      cv.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
-      URL.revokeObjectURL(url);
-      resolve(cv.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unreadable image")); };
-    img.src = url;
-  });
+// ---------- photos ----------
+// Each candidate keeps a downsized source photo (src) plus a framing {fx, fy, z}: the point of the source at the
+// card's center (as fractions of its width and height) and a zoom where 1 fills the 4:5 card exactly.
+// The card image (img) is rendered from those, so the commissioner can recenter or zoom out later.
+const CW = 320, CH = 400, MAX_SRC = 900, MAX_ZOOM = 4;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+function loadImage(src) {
+  return new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = () => reject(new Error("unreadable image")); im.src = src; });
+}
+async function fileToSource(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const im = await loadImage(url);
+    const k = Math.min(1, MAX_SRC / Math.max(im.naturalWidth, im.naturalHeight));
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
+    cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+    return cv.toDataURL("image/jpeg", 0.85);
+  } finally { URL.revokeObjectURL(url); }
+}
+// Starting frame: fill the card, centered left to right, nudged toward the top where faces usually are.
+function defaultFrame(im) {
+  const w = im.naturalWidth, h = im.naturalHeight, cover = Math.max(CW / w, CH / h);
+  const cropH = CH / cover, sy = (h - cropH) * 0.2;
+  return { fx: 0.5, fy: (sy + cropH / 2) / h, z: 1 };
+}
+function layout(im, f) {
+  const w = im.naturalWidth, h = im.naturalHeight, cover = Math.max(CW / w, CH / h);
+  const minZ = Math.min(CW / w, CH / h) / cover;
+  const z = clamp(f.z, minZ, MAX_ZOOM), dw = w * cover * z, dh = h * cover * z;
+  const dx = clamp(CW / 2 - f.fx * dw, Math.min(0, CW - dw), Math.max(0, CW - dw));
+  const dy = clamp(CH / 2 - f.fy * dh, Math.min(0, CH - dh), Math.max(0, CH - dh));
+  return { dx, dy, dw, dh, minZ, frame: { fx: (CW / 2 - dx) / dw, fy: (CH / 2 - dy) / dh, z } };
+}
+function drawFrame(canvas, im, f) {
+  const ctx = canvas.getContext("2d"), L = layout(im, f);
+  ctx.fillStyle = "#1a2137"; ctx.fillRect(0, 0, CW, CH);
+  if ((L.dw < CW || L.dh < CH) && "filter" in CanvasRenderingContext2D.prototype) {
+    // Zoomed out past the edges: fill the gaps with a soft, blurred copy of the same photo.
+    const cover = Math.max(CW / im.naturalWidth, CH / im.naturalHeight) * 1.1;
+    const bw = im.naturalWidth * cover, bh = im.naturalHeight * cover;
+    ctx.save(); ctx.filter = "blur(18px) brightness(0.75)";
+    ctx.drawImage(im, (CW - bw) / 2, (CH - bh) / 2, bw, bh);
+    ctx.restore();
+  }
+  ctx.drawImage(im, L.dx, L.dy, L.dw, L.dh);
+  return L.frame;
+}
+function renderCard(im, f) {
+  const cv = document.createElement("canvas"); cv.width = CW; cv.height = CH;
+  drawFrame(cv, im, f);
+  return cv.toDataURL("image/jpeg", 0.85);
+}
+async function photoFields(file) {
+  const src = await fileToSource(file), im = await loadImage(src), frame = defaultFrame(im);
+  return { src, frame, img: renderCard(im, frame) };
 }
 async function addFiles(files) {
   const list = [...files].filter(f => f.type.startsWith("image/"));
@@ -446,11 +509,67 @@ async function addFiles(files) {
   let ok = 0;
   for (const [k, f] of list.entries()) {
     st.textContent = `Adding ${k + 1} of ${list.length}…`;
-    try { await set(push(R("candidates")), { name: nameFromFile(f), img: await toPortrait(f), added: Date.now() }); ok++; }
+    try { await set(push(R("candidates")), { name: nameFromFile(f), ...(await photoFields(f)), added: Date.now() }); ok++; }
     catch (e) { console.error(e); }
   }
   st.textContent = list.length ? `Added ${ok} of ${list.length}.` : "Those weren't image files.";
 }
+
+// ---------- photo framing editor ----------
+const framer = $("#framer"), fCanvas = $("#framerCanvas"), fZoom = $("#framerZoom");
+let fr = null; // { id, im, frame, minZ }
+const zoomToSlider = (z, minZ) => Math.round(1000 * Math.log(z / minZ) / Math.log(MAX_ZOOM / minZ));
+const sliderToZoom = (t, minZ) => minZ * Math.pow(MAX_ZOOM / minZ, t / 1000);
+function drawFramer() {
+  fr.frame = drawFrame(fCanvas, fr.im, fr.frame);
+  fZoom.value = zoomToSlider(fr.frame.z, fr.minZ);
+}
+async function openFramer(id) {
+  const c = candById(id);
+  if (!c?.img) return;
+  try {
+    const im = await loadImage(c.src || c.img);
+    const frame = c.src && c.frame ? { ...c.frame } : defaultFrame(im);
+    fr = { id, im, frame, minZ: layout(im, frame).minZ };
+    $("#framerTitle").textContent = "Adjust " + c.name;
+    framer.showModal();
+    drawFramer();
+  } catch (e) { fail(e); }
+}
+fZoom.addEventListener("input", () => { if (!fr) return; fr.frame.z = sliderToZoom(Number(fZoom.value), fr.minZ); fr.frame = drawFrame(fCanvas, fr.im, fr.frame); });
+fCanvas.addEventListener("wheel", e => {
+  if (!fr) return;
+  e.preventDefault();
+  fr.frame.z *= Math.exp(-e.deltaY * 0.0015);
+  drawFramer();
+}, { passive: false });
+let dragFrom = null;
+fCanvas.addEventListener("pointerdown", e => { if (!fr) return; fCanvas.setPointerCapture(e.pointerId); dragFrom = { x: e.clientX, y: e.clientY }; });
+fCanvas.addEventListener("pointermove", e => {
+  if (!fr || !dragFrom) return;
+  const k = CW / fCanvas.getBoundingClientRect().width, L = layout(fr.im, fr.frame);
+  fr.frame.fx -= (e.clientX - dragFrom.x) * k / L.dw;
+  fr.frame.fy -= (e.clientY - dragFrom.y) * k / L.dh;
+  dragFrom = { x: e.clientX, y: e.clientY };
+  fr.frame = drawFrame(fCanvas, fr.im, fr.frame);
+});
+["pointerup", "pointercancel"].forEach(t => fCanvas.addEventListener(t, () => { dragFrom = null; }));
+framer.addEventListener("close", () => { fr = null; dragFrom = null; });
+framer.addEventListener("click", async e => {
+  const b = e.target.closest("[data-fr]");
+  if (!b || !fr) return;
+  if (b.dataset.fr === "reset") { fr.frame = defaultFrame(fr.im); drawFramer(); }
+  else if (b.dataset.fr === "cancel") framer.close();
+  else if (b.dataset.fr === "save") {
+    const { id, im, frame } = fr, c = candById(id);
+    const patch = { img: renderCard(im, frame), frame };
+    if (!c?.src) patch.src = im.src;
+    b.disabled = true;
+    try { await update(R("candidates/" + id), patch); framer.close(); toast("Photo updated."); }
+    catch (err) { fail(err); }
+    finally { b.disabled = false; }
+  }
+});
 
 // ---------- events ----------
 let armTimer = null;
@@ -493,6 +612,7 @@ document.addEventListener("click", async e => {
       break;
     }
     case "photo": replaceTarget = id; $("#replacePhoto").click(); break;
+    case "adjust": await openFramer(id); break;
     case "remove":
       if (arm("rm-" + id)) set(R("candidates/" + id), null).catch(fail);
       break;
@@ -523,7 +643,7 @@ document.addEventListener("change", async e => {
   } else if (t.id === "upload") {
     await addFiles(t.files); t.value = "";
   } else if (t.id === "replacePhoto" && replaceTarget && t.files[0]) {
-    try { await set(R(`candidates/${replaceTarget}/img`), await toPortrait(t.files[0])); } catch (err) { fail(err); }
+    try { await update(R("candidates/" + replaceTarget), await photoFields(t.files[0])); } catch (err) { fail(err); }
     t.value = ""; replaceTarget = null;
   } else if (t.dataset.act === "dname") {
     const name = t.value.trim() || "Drafter";
