@@ -122,6 +122,18 @@ table.board { border-collapse: collapse; width: 100%; min-width: 680px; table-la
 .slot .c { font-weight: 600; font-size: .86rem; line-height: 1.2; overflow-wrap: anywhere; }
 td.now { background: color-mix(in srgb, var(--clock) 22%, transparent); }
 
+.rules { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.rulebox { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.rulebox h3 { margin: 0; font-size: .78rem; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.rulebox table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+.rulebox td { padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.rulebox tr:last-child td { border-bottom: 0; }
+.rulebox td.pts { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; padding-left: 12px; }
+.rulebox td.pts.neg { color: var(--danger); }
+.rulebox td .sub { display: block; color: var(--muted); font-size: .8rem; }
+.rulebox ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; font-size: .92rem; }
+.rulebox .muted { color: var(--muted); }
+textarea { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); width: 100%; min-height: 96px; resize: vertical; }
 details.commish { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
 details.commish > summary { cursor: pointer; padding: 14px 18px; font-family: var(--display); font-weight: 800; font-size: 1.3rem; text-transform: uppercase; list-style-position: inside; }
 .commish .body { padding: 0 18px 18px; display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
@@ -167,6 +179,56 @@ details.commish > summary { cursor: pointer; padding: 14px 18px; font-family: va
     <div class="boardwrap"><table class="board" id="board"></table></div>
   </section>
 
+  <section id="rulesSection">
+    <div class="section-head"><h2>Scoring rules</h2></div>
+    <div class="rules">
+      <div class="rulebox">
+        <h3>Milestones</h3>
+        <table>
+          <tr><td>First to formally announce<span class="sub">Exploratory committees don't count</span></td><td class="pts">+1</td></tr>
+          <tr><td>Wins the nomination</td><td class="pts">+10</td></tr>
+          <tr><td>Named the VP pick</td><td class="pts">+5</td></tr>
+          <tr><td>Appears at a DNC-sanctioned primary debate</td><td class="pts">+1 each</td></tr>
+          <tr><td>Exploratory committee, then withdraws without formally running<span class="sub">Applies when they withdraw</span></td><td class="pts neg">−3</td></tr>
+          <tr><td>Endorses the 2028 Republican nominee<span class="sub">Any time through Election Day 2028, even after withdrawing</span></td><td class="pts neg">−100</td></tr>
+        </table>
+      </div>
+      <div class="rulebox">
+        <h3>Early primaries</h3>
+        <table>
+          <tr><td>1st contest<span class="sub">South Carolina · Jan 22</span></td><td class="pts">+4</td></tr>
+          <tr><td>2nd contest<span class="sub">Nevada · Feb 1</span></td><td class="pts">+3</td></tr>
+          <tr><td>3rd contest<span class="sub">New Hampshire · Feb 8</span></td><td class="pts">+2</td></tr>
+          <tr><td>4th contest<span class="sub">New Mexico · Feb 15</span></td><td class="pts">+1</td></tr>
+          <tr><td>5th contest<span class="sub">Michigan · Feb 22</span></td><td class="pts">+1</td></tr>
+          <tr><td>6th contest<span class="sub">Virginia · Feb 29</span></td><td class="pts">+1</td></tr>
+          <tr><td>Super Tuesday (Mar 7) and later</td><td class="pts">0</td></tr>
+        </table>
+        <ul>
+          <li>The winner is the candidate with the most delegates in that contest. Tied candidates each get the full points.</li>
+          <li>Points follow the calendar order. If the schedule changes, each slot keeps its value.</li>
+        </ul>
+      </div>
+      <div class="rulebox">
+        <h3>Major endorsements · +2 each</h3>
+        <p class="muted" style="margin:0;font-size:.92rem">A candidate earns 2 points for each endorsement from someone on the list below. The group sets the list unanimously before the draft, and it can include people or organizations. There's no cap.</p>
+        <ul id="endorserList"></ul>
+        <ul>
+          <li>An endorser who is also a candidate counts. For example, a candidate who drops out and endorses a rival.</li>
+          <li>If an endorser switches, the first candidate loses the 2 points and the new candidate gains them.</li>
+          <li id="cutoffLine"></li>
+        </ul>
+      </div>
+      <div class="rulebox">
+        <h3>General</h3>
+        <ul>
+          <li>A candidate who withdraws scores nothing after that. Points already earned stay, except the −100 penalty, which still applies.</li>
+          <li>Points earned by undrafted candidates go to no one.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <details class="commish" id="commish" hidden>
     <summary>Commissioner tools</summary>
     <div class="body">
@@ -189,6 +251,14 @@ details.commish > summary { cursor: pointer; padding: 14px 18px; font-family: va
           <input type="text" id="newName" placeholder="Or add a name without a photo" aria-label="Candidate name" style="flex:1">
           <button type="button" data-act="addName">Add</button>
         </div>
+      </div>
+      <div class="group">
+        <h3>Scoring</h3>
+        <label class="hint" for="endorsersInput">Major endorsers, one per line</label>
+        <textarea id="endorsersInput" placeholder="Bernie Sanders"></textarea>
+        <label class="hint" for="cutoffInput">Endorsement cutoff</label>
+        <input type="text" id="cutoffInput" placeholder="For example: March 7, 2028">
+        <p class="hint" id="scoringLock">Both lock when the draft starts.</p>
       </div>
       <div class="group">
         <h3>Run the draft</h3>
@@ -239,6 +309,8 @@ function cfg() {
     drafters: Array.isArray(config?.drafters) && config.drafters.length === N ? config.drafters : DEFAULT_DRAFTERS,
     rounds: config?.rounds || 0,
     status: config?.status || "setup",
+    endorsers: Array.isArray(config?.endorsers) ? config.endorsers : [],
+    endorseCutoff: config?.endorseCutoff || "",
   };
 }
 const autoRounds = () => Math.max(1, Math.floor(candidates.length / N));
@@ -272,7 +344,7 @@ function swap(el, html) {
 }
 
 function render() {
-  renderTicker(); renderSeats(); renderWall(); renderBoard(); renderCommish();
+  renderTicker(); renderSeats(); renderWall(); renderBoard(); renderRules(); renderCommish();
   const i = currentIndex();
   const mine = phase() === "live" && cfg().drafters[posForPick(i)]?.id === mySeat();
   document.title = (mine ? "● Your pick · " : "") + "2028 Dem Primary Draft";
@@ -369,6 +441,16 @@ function renderBoard() {
   $("#board").innerHTML = h + `</tbody>`;
 }
 
+function renderRules() {
+  const c = cfg();
+  $("#endorserList").innerHTML = c.endorsers.length
+    ? c.endorsers.map(n => `<li><b>${esc(n)}</b></li>`).join("")
+    : `<li class="muted">The list hasn't been set yet.</li>`;
+  $("#cutoffLine").textContent = c.endorseCutoff
+    ? `Endorsements count through ${c.endorseCutoff}.`
+    : "The endorsement cutoff date hasn't been set yet.";
+}
+
 function renderCommish() {
   const box = $("#commish");
   box.hidden = !(isAdmin() && ready);
@@ -380,6 +462,11 @@ function renderCommish() {
     <button type="button" data-act="up" data-id="${d.id}" ${locked || idx === 0 ? "disabled" : ""} aria-label="Move up">↑</button>
     <button type="button" data-act="down" data-id="${d.id}" ${locked || idx === N - 1 ? "disabled" : ""} aria-label="Move down">↓</button></div>`).join(""));
   $("#shuffleBtn").disabled = locked;
+  const eIn = $("#endorsersInput"), cIn = $("#cutoffInput");
+  if (document.activeElement !== eIn) eIn.value = c.endorsers.join("\n");
+  if (document.activeElement !== cIn) cIn.value = c.endorseCutoff;
+  eIn.disabled = cIn.disabled = locked;
+  $("#scoringLock").textContent = locked ? "Locked because the draft has started." : "Both lock when the draft starts.";
   const maxR = Math.max(1, Math.ceil(candidates.length / N));
   const sel = $("#rounds");
   if (document.activeElement !== sel) {
@@ -648,6 +735,10 @@ document.addEventListener("change", async e => {
   } else if (t.dataset.act === "dname") {
     const name = t.value.trim() || "Drafter";
     await saveConfig({ drafters: cfg().drafters.map(d => d.id === t.dataset.id ? { ...d, name } : d) });
+  } else if (t.id === "endorsersInput") {
+    await saveConfig({ endorsers: t.value.split("\n").map(s => s.trim()).filter(Boolean) });
+  } else if (t.id === "cutoffInput") {
+    await saveConfig({ endorseCutoff: t.value.trim() });
   } else if (t.id === "rounds") {
     await saveConfig({ rounds: Number(t.value) || 0 });
   } else if (t.id === "hideDrafted") renderWall();
