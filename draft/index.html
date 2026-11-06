@@ -333,6 +333,13 @@ function phase() {
   return picks.size ? "paused" : "setup";
 }
 const pickLabel = i => `Round ${Math.floor(i / N) + 1} · Pick ${(i % N) + 1} · #${i + 1} overall`;
+// Sort key for "First Last": the last word, skipping suffixes like Jr. or III.
+const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
+function lastNameKey(n) {
+  const words = String(n || "").trim().split(/\s+/);
+  while (words.length > 1 && SUFFIXES.has(words[words.length - 1].toLowerCase().replace(/[.,]/g, ""))) words.pop();
+  return words[words.length - 1] || "";
+}
 const initials = n => String(n || "?").split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
 // ---------- rendering ----------
@@ -780,7 +787,8 @@ function boot() {
     onValue(R("admin"), s => { adminUid = s.val(); markLoaded("admin"); }, onErr);
     onValue(R("config"), s => { config = s.val(); markLoaded("config"); }, onErr);
     onValue(R("candidates"), s => {
-      candidates = Object.entries(s.val() || {}).map(([id, v]) => ({ id, ...v })).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      candidates = Object.entries(s.val() || {}).map(([id, v]) => ({ id, ...v }))
+        .sort((a, b) => lastNameKey(a.name).localeCompare(lastNameKey(b.name)) || String(a.name).localeCompare(String(b.name)));
       markLoaded("cands");
     }, onErr);
     onValue(R("seats"), s => { seats = s.val() || {}; markLoaded("seats"); }, onErr);
