@@ -267,7 +267,7 @@ details.commish > summary { cursor: pointer; padding: 14px 18px; font-family: va
         <h3>Run the draft</h3>
         <label class="btnrow">Rounds <select id="rounds"></select></label>
         <div class="btnrow" id="runBtns"></div>
-        <p class="hint">You can pick on behalf of whoever is on the clock, and free a seat if someone switches phones or computers.</p>
+        <p class="hint">You can pick on behalf of whoever is on the clock.</p>
       </div>
     </div>
   </details>
@@ -301,8 +301,16 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 let db = null, myUid = null, adminUid = null;
-let config = null, candidates = [], picks = new Map(), seats = {};
-const loaded = { admin: false, config: false, cands: false, picks: false, seats: false };
+let config = null, candidates = [], picks = new Map();
+const loaded = { admin: false, config: false, cands: false, picks: false };
+// Honor system: each visitor says which seat is theirs. It lasts for this tab (through refreshes), not across visits.
+let chosenSeat = null;
+try { chosenSeat = sessionStorage.getItem("draftSeat"); } catch {}
+function chooseSeat(id) {
+  chosenSeat = id;
+  try { id ? sessionStorage.setItem("draftSeat", id) : sessionStorage.removeItem("draftSeat"); } catch {}
+  render();
+}
 let confirming = null, armed = null, lastPickCount = null, ready = false, replaceTarget = null;
 const isAdmin = () => !!myUid && adminUid === myUid;
 
@@ -322,7 +330,7 @@ const totalPicks = () => Math.min(rounds() * N, candidates.length);
 const posForPick = i => { const r = Math.floor(i / N), k = i % N; return r % 2 ? N - 1 - k : k; };
 function currentIndex() { let i = 0; while (picks.has(i)) i++; return i; }
 const draftedBy = () => { const m = new Map(); for (const p of picks.values()) m.set(p.cand, p); return m; };
-const mySeat = () => cfg().drafters.find(d => seats[d.id]?.uid === myUid)?.id || null;
+const mySeat = () => cfg().drafters.some(d => d.id === chosenSeat) ? chosenSeat : null;
 const candById = id => candidates.find(c => c.id === id);
 const drafterName = id => cfg().drafters.find(d => d.id === id)?.name || "Someone";
 const pickKey = n => "p" + String(n).padStart(3, "0");
@@ -389,14 +397,12 @@ function renderTicker() {
 function renderSeats() {
   const c = cfg(), me = mySeat(), ph = phase(), i = currentIndex();
   const clockId = ph === "live" || ph === "paused" ? c.drafters[posForPick(i)]?.id : null;
-  $("#seatHint").textContent = !ready ? "" : me ? `You're drafting as ${drafterName(me)}.` : "Pick the seat with your name to join.";
+  $("#seatHint").textContent = !ready ? "" : me ? `You're drafting as ${drafterName(me)}.` : "Tap This is me on your name to make your picks.";
   swap($("#seats"), c.drafters.map((d, idx) => {
-    const s = seats[d.id];
-    const claimed = !!s?.uid, isMe = claimed && s.uid === myUid;
+    const isMe = d.id === me;
     let state;
-    if (isMe) state = `<span>Your seat</span><button type="button" data-act="free" data-id="${d.id}">Leave</button>`;
-    else if (claimed) state = `<span>Joined</span>${isAdmin() ? `<button type="button" data-act="free" data-id="${d.id}">Free seat</button>` : ""}`;
-    else state = me ? `<span>Open</span>` : `<button type="button" class="primary" data-act="claim" data-id="${d.id}" ${ready ? "" : "disabled"}>This is me</button>`;
+    if (isMe) state = `<span>Your seat</span><button type="button" data-act="switch">Switch</button>`;
+    else state = me ? "" : `<button type="button" class="primary" data-act="claim" data-id="${d.id}" ${ready ? "" : "disabled"}>This is me</button>`;
     return `<div class="seat ${clockId === d.id ? "onclock" : ""} ${isMe ? "me" : ""}">
       <div class="pos">POSITION ${idx + 1}</div><div class="name">${esc(d.name)}</div><div class="state">${state}</div></div>`;
   }).join(""));
@@ -528,14 +534,6 @@ async function makePick(candId) {
   try {
     const res = await runTransaction(R("picks/" + pickKey(i)), cur => cur ? undefined : { n: i, drafter: d.id, cand: candId, at: Date.now(), by: myUid });
     if (!res.committed) toast("Someone just made this pick. The board is catching up.");
-  } catch (e) { fail(e); }
-}
-
-async function claimSeat(id) {
-  if (mySeat()) return;
-  try {
-    const res = await runTransaction(R("seats/" + id), cur => cur ? undefined : { uid: myUid, at: Date.now() });
-    if (!res.committed) toast("That seat is already taken.");
   } catch (e) { fail(e); }
 }
 
@@ -685,8 +683,8 @@ document.addEventListener("click", async e => {
     case "pick": confirming = id; render(); break;
     case "cancel": confirming = null; render(); break;
     case "confirm": confirming = null; await makePick(id); break;
-    case "claim": await claimSeat(id); break;
-    case "free": set(R("seats/" + id), null).catch(fail); break;
+    case "claim": chooseSeat(id); break;
+    case "switch": chooseSeat(null); break;
     case "becomeAdmin":
       try { const r = await runTransaction(R("admin"), cur => cur ? undefined : myUid); toast(r.committed ? "You're the commissioner." : "Someone else already claimed it."); }
       catch (err) { fail(err); }
@@ -791,7 +789,6 @@ function boot() {
         .sort((a, b) => lastNameKey(a.name).localeCompare(lastNameKey(b.name)) || String(a.name).localeCompare(String(b.name)));
       markLoaded("cands");
     }, onErr);
-    onValue(R("seats"), s => { seats = s.val() || {}; markLoaded("seats"); }, onErr);
     onValue(R("picks"), s => {
       const v = s.val() || {};
       picks = new Map(Object.values(v).map(p => [p.n, p]));
