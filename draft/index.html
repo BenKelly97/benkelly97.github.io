@@ -106,6 +106,9 @@ dialog.framer::backdrop { background: rgba(5, 8, 20, .6); }
 label.filebtn { display: inline-block; cursor: pointer; border-radius: 6px; background: var(--accent); color: var(--accent-ink); padding: 6px 12px; font-weight: 600; }
 label.filebtn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.writein { background: var(--surface); border: 1px dashed var(--clock); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; display: grid; gap: 8px; font-size: .92rem; }
+.writein input { flex: 1; min-width: 180px; }
+.wtag { display: block; font-family: var(--mono); font-size: .65rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin-top: 2px; }
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; padding: 28px 20px; text-align: center; color: var(--muted); }
 .empty strong { color: var(--ink); display: block; font-size: 1.05rem; margin-bottom: 4px; }
 
@@ -171,6 +174,13 @@ details.commish > summary { cursor: pointer; padding: 14px 18px; font-family: va
       <div class="tools">
         <input type="text" id="search" placeholder="Search candidates" aria-label="Search candidates">
         <label><input type="checkbox" id="hideDrafted"> Hide drafted</label>
+      </div>
+    </div>
+    <div id="writein" class="writein" hidden>
+      <label for="writeInName">Not on the list? Write in a candidate<span id="writeInFor"></span>:</label>
+      <div class="btnrow">
+        <input type="text" id="writeInName" placeholder="Full name, e.g. Jon Stewart" maxlength="60" autocomplete="off">
+        <button type="button" class="primary" id="writeInBtn" data-act="writein">Draft write-in</button>
       </div>
     </div>
     <div id="wall" class="wall"></div>
@@ -326,12 +336,20 @@ function cfg() {
 }
 const autoRounds = () => Math.max(1, Math.floor(candidates.length / N));
 const rounds = () => cfg().rounds || autoRounds();
-const totalPicks = () => Math.min(rounds() * N, candidates.length);
+const totalPicks = () => Math.min(rounds() * N, allCands().length);
 const posForPick = i => { const r = Math.floor(i / N), k = i % N; return r % 2 ? N - 1 - k : k; };
 function currentIndex() { let i = 0; while (picks.has(i)) i++; return i; }
 const draftedBy = () => { const m = new Map(); for (const p of picks.values()) m.set(p.cand, p); return m; };
 const mySeat = () => cfg().drafters.some(d => d.id === chosenSeat) ? chosenSeat : null;
-const candById = id => candidates.find(c => c.id === id);
+// Write-ins live on the pick itself ({cand: "w-…", writeIn: "Name"}), so they show up as candidates once drafted.
+const byLastName = (a, b) => lastNameKey(a.name).localeCompare(lastNameKey(b.name)) || String(a.name).localeCompare(String(b.name));
+function allCands() {
+  const writeIns = [...picks.values()].filter(p => p.writeIn && !candidates.some(c => c.id === p.cand))
+    .map(p => ({ id: p.cand, name: p.writeIn, img: "", writeIn: true }));
+  return writeIns.length ? [...candidates, ...writeIns].sort(byLastName) : candidates;
+}
+const candById = id => allCands().find(c => c.id === id);
+const normName = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const drafterName = id => cfg().drafters.find(d => d.id === id)?.name || "Someone";
 const pickKey = n => "p" + String(n).padStart(3, "0");
 function phase() {
@@ -420,7 +438,15 @@ function renderWall() {
   const onClock = ph === "live" ? c.drafters[posForPick(i)]?.id : null;
   const canPick = !!onClock && (onClock === mySeat() || isAdmin());
   const editing = isAdmin() && ph === "setup";
-  const list = candidates.filter(x => (!q || x.name.toLowerCase().includes(q)) && !(hide && taken.has(x.id)));
+  const wi = $("#writein");
+  wi.hidden = !canPick;
+  if (canPick) {
+    $("#writeInFor").textContent = onClock !== mySeat() ? ` for ${drafterName(onClock)}` : "";
+    const btn = $("#writeInBtn");
+    btn.textContent = armed === "wi" ? `Confirm: draft ${$("#writeInName").value.trim()}` : "Draft write-in";
+    btn.className = armed === "wi" ? "armed" : "primary";
+  }
+  const list = allCands().filter(x => (!q || x.name.toLowerCase().includes(q)) && !(hide && taken.has(x.id)));
   if (!list.length) { el.innerHTML = `<div class="empty" style="grid-column:1/-1"><strong>No matches</strong>Try a different search.</div>`; return; }
   swap(el, list.map(x => {
     const p = taken.get(x.id);
@@ -434,7 +460,7 @@ function renderWall() {
       <button type="button" data-act="photo" data-id="${x.id}">Replace</button>
       <button type="button" class="${armed === "rm-" + x.id ? "armed" : "danger"}" data-act="remove" data-id="${x.id}">${armed === "rm-" + x.id ? "Confirm" : "Remove"}</button></div></div>` : "";
     return `<div class="card ${p ? "drafted" : ""} ${pickable ? "pickable" : ""}" ${pickable ? `data-act="pick" data-id="${x.id}" role="button" tabindex="0" aria-label="Draft ${esc(x.name)}"` : ""}>
-      <div class="photo">${photo}</div><div class="cname">${esc(x.name)}</div>${edit}${ribbon}${conf}</div>`;
+      <div class="photo">${photo}</div><div class="cname">${esc(x.name)}${x.writeIn ? `<span class="wtag">Write-in</span>` : ""}</div>${edit}${ribbon}${conf}</div>`;
   }).join(""));
 }
 
@@ -525,14 +551,16 @@ function fail(e) {
   toast(String(e?.code || e?.message).includes("PERMISSION_DENIED") ? "That isn't allowed right now. It may not be your turn, or the seat is taken." : "That didn't save. Check your connection and try again.");
 }
 
-async function makePick(candId) {
+async function makePick(candId, writeIn = "") {
   const c = cfg(), i = currentIndex();
   if (phase() !== "live" || i >= totalPicks()) return;
   const d = c.drafters[posForPick(i)];
   if (!(isAdmin() || mySeat() === d.id)) return;
   if (draftedBy().has(candId)) { toast("That candidate is already taken."); return; }
+  const pick = { n: i, drafter: d.id, cand: candId, at: Date.now(), by: myUid };
+  if (writeIn) pick.writeIn = writeIn;
   try {
-    const res = await runTransaction(R("picks/" + pickKey(i)), cur => cur ? undefined : { n: i, drafter: d.id, cand: candId, at: Date.now(), by: myUid });
+    const res = await runTransaction(R("picks/" + pickKey(i)), cur => cur ? undefined : pick);
     if (!res.committed) toast("Someone just made this pick. The board is catching up.");
   } catch (e) { fail(e); }
 }
@@ -683,6 +711,24 @@ document.addEventListener("click", async e => {
     case "pick": confirming = id; render(); break;
     case "cancel": confirming = null; render(); break;
     case "confirm": confirming = null; await makePick(id); break;
+    case "writein": {
+      const inp = $("#writeInName"), name = inp.value.trim().replace(/\s+/g, " ");
+      if (!name) { toast("Type a name to write in."); inp.focus(); break; }
+      const match = allCands().find(x => normName(x.name) === normName(name));
+      if (match) {
+        armed = null;
+        toast(draftedBy().has(match.id) ? `${match.name} has already been drafted.` : `${match.name} is already on the list. Tap their card instead.`);
+        render();
+        break;
+      }
+      if (arm("wi")) {
+        const slug = normName(name).replace(/ /g, "-").slice(0, 40) || "candidate";
+        await makePick(`w-${slug}-${Date.now().toString(36)}`, name);
+        inp.value = "";
+        render();
+      }
+      break;
+    }
     case "claim": chooseSeat(id); break;
     case "switch": chooseSeat(null); break;
     case "becomeAdmin":
@@ -752,6 +798,8 @@ document.addEventListener("change", async e => {
   } else if (t.id === "hideDrafted") renderWall();
 });
 $("#search").addEventListener("input", renderWall);
+$("#writeInName").addEventListener("input", () => { if (armed === "wi") { armed = null; renderWall(); } });
+$("#writeInName").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("#writeInBtn").click(); } });
 $("#newName").addEventListener("keydown", e => { if (e.key === "Enter") $('[data-act="addName"]').click(); });
 const drop = $("#drop");
 drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
@@ -786,7 +834,7 @@ function boot() {
     onValue(R("config"), s => { config = s.val(); markLoaded("config"); }, onErr);
     onValue(R("candidates"), s => {
       candidates = Object.entries(s.val() || {}).map(([id, v]) => ({ id, ...v }))
-        .sort((a, b) => lastNameKey(a.name).localeCompare(lastNameKey(b.name)) || String(a.name).localeCompare(String(b.name)));
+        .sort(byLastName);
       markLoaded("cands");
     }, onErr);
     onValue(R("picks"), s => {
