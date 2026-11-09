@@ -33,14 +33,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 main{max-width:720px;margin:0 auto;padding:56px 16px 64px}
 h1{font-size:22px;font-weight:600;letter-spacing:-0.01em}
 .lede{color:var(--text2);margin-top:6px;font-size:15px}
-.card{display:block;margin-top:32px;padding:20px 22px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);text-decoration:none;color:inherit;transition:border-color .15s}
-.card:hover,.card:focus-visible{border-color:var(--accent);outline:none}
-.card h2{font-size:17px;font-weight:600}
-.card h2 span{color:var(--accent)}
-.card p{color:var(--text2);font-size:14px;margin-top:6px}
-.links{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;font-size:14px}
-.links a{color:var(--accent);text-decoration:none}
-.links a:hover{text-decoration:underline}
+h2{font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:36px}
+.pages{list-style:none;margin-top:10px;border:1px solid var(--border);border-radius:12px;background:var(--bg2);overflow:hidden}
+.pages li+li{border-top:1px solid var(--border)}
+.pages a{display:block;padding:14px 18px;text-decoration:none;color:inherit}
+.pages a:hover,.pages a:focus-visible{background:var(--bg);outline:none}
+.pages b{display:block;font-size:15px;font-weight:600;color:var(--accent)}
+.pages span{display:block;font-size:14px;color:var(--text2);margin-top:2px}
 footer{margin-top:48px;color:var(--text3);font-size:12px}
 </style>
 </head>
@@ -48,17 +47,16 @@ footer{margin-top:48px;color:var(--text3);font-size:12px}
 <main>
   <h1>bkkelly.com</h1>
 
-  <a class="card" href="/council/">
-    <h2>Cincinnati City Council <span>&rarr;</span></h2>
-    <p>Legislative record from 2018: agenda items with plain-language titles, roll call votes, meetings and Legislative Agent registrations, from Legistar and updated daily.</p>
-  </a>
-  <div class="links">
-    <a href="/council/agenda.html">Meetings</a>
-    <a href="/council/alternative.html">Roll call votes</a>
-    <a href="/council/members.html">Member records</a>
-    <a href="/council/agents.html">Legislative Agents</a>
-    <a href="/council/about.html">About the data</a>
-  </div>
+  <h2>Cincinnati City Council</h2>
+  <ul class="pages">
+    <li><a href="/council/"><b>Legislative record</b><span>Every agenda item since 2018 with a plain-language title and description, searchable, with links to Legistar and the attachments.</span></a></li>
+    <li><a href="/council/agenda.html"><b>Meetings</b><span>Upcoming and recent Council and committee meetings, and every meeting by year, with each item and its action.</span></a></li>
+    <li><a href="/council/alternative.html"><b>Roll call votes</b><span>Items with recorded roll call votes since July 2020 and how each member voted.</span></a></li>
+    <li><a href="/council/members.html"><b>Member records</b><span>Each current and former member's roll call votes, with their No, Abstain, Absent and Excused votes listed separately.</span></a></li>
+    <li><a href="/council/votechart/"><b>Vote chart</b><span>Who votes together: agreement between members on non-unanimous roll call votes since 2022.</span></a></li>
+    <li><a href="/council/agents.html"><b>Legislative Agents</b><span>Organizations that registered a Legislative Agent with the Clerk of Council, with firms, agents and dates.</span></a></li>
+    <li><a href="/council/about.html"><b>About the data</b><span>Sources, update schedule, how titles and dates are produced, and known gaps.</span></a></li>
+  </ul>
 
   <footer>Not an official City of Cincinnati site.</footer>
 </main>
