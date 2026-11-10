@@ -41,7 +41,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ -f .github/blog/feed.xml ]; then git add .github/blog/feed.xml; fi
+          if [ -d .github/blog ]; then git add .github/blog; fi
           if [ -d blog ]; then git add blog; fi
           git diff --staged --quiet || git commit -m "Blog update $(date -u +'%Y-%m-%d %H:%M') UTC"
           git push
