@@ -1,0 +1,47 @@
+name: Blog update
+
+# Copies posts from the Medium feed (medium.com/feed/@bkellyohio) to bkkelly.com/blog.
+# Medium's feed lists only the latest posts; build_blog.py keeps every post it has
+# copied, so older posts stay on the site after they leave the feed.
+
+on:
+  schedule:
+    # Daily at 12:23 UTC: 8:23 AM EDT / 7:23 AM EST (minute offset: GitHub delays runs on the hour).
+    - cron: '23 12 * * *'
+  workflow_dispatch:
+    inputs:
+      save_feed:
+        description: 'Also save the raw feed to .github/blog/feed.xml (for testing)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Fetch Medium feed
+        run: |
+          curl -sS -f -L --retry 3 -A "Mozilla/5.0 (compatible; bkkelly.com blog updater)" \
+            -o "$RUNNER_TEMP/feed.xml" https://medium.com/feed/@bkellyohio
+          grep -q "<rss" "$RUNNER_TEMP/feed.xml"
+          echo "Feed: $(grep -o '<item>' "$RUNNER_TEMP/feed.xml" | wc -l) items, $(wc -c < "$RUNNER_TEMP/feed.xml") bytes"
+          if [ "${{ inputs.save_feed }}" = "true" ]; then mkdir -p .github/blog && cp "$RUNNER_TEMP/feed.xml" .github/blog/feed.xml; fi
+
+      - name: Build blog pages
+        run: |
+          if [ -f .github/blog/build_blog.py ]; then python3 .github/blog/build_blog.py "$RUNNER_TEMP/feed.xml"; else echo "No build script yet"; fi
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f .github/blog/feed.xml ]; then git add .github/blog/feed.xml; fi
+          if [ -d blog ]; then git add blog; fi
+          git diff --staged --quiet || git commit -m "Blog update $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push
