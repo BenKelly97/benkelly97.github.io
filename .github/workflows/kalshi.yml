@@ -1,0 +1,50 @@
+name: Kalshi odds
+
+# Saves Kalshi prices for the 2028 Democratic nominee (event KXPRESNOMD-28) to
+# draft/kalshi.json for the draft page. Kalshi's API does not allow other sites to
+# read it from a visitor's browser, so this job fetches it and the page reads the file.
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'   # every 30 minutes (GitHub may start scheduled runs late)
+  workflow_dispatch:
+    inputs:
+      save_raw:
+        description: 'Also save the raw API response to .github/kalshi/raw.json (for testing)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kalshi-odds
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Fetch Kalshi markets
+        run: |
+          curl -sS -f -L --retry 3 -A "bkkelly.com draft odds" \
+            -o "$RUNNER_TEMP/raw.json" \
+            "https://api.elections.kalshi.com/trade-api/v2/markets?event_ticker=KXPRESNOMD-28&limit=1000"
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print('Markets:', len(d.get('markets', [])))" "$RUNNER_TEMP/raw.json"
+          if [ "${{ inputs.save_raw }}" = "true" ]; then mkdir -p .github/kalshi && cp "$RUNNER_TEMP/raw.json" .github/kalshi/raw.json; fi
+
+      - name: Write draft/kalshi.json
+        run: |
+          if [ -f .github/kalshi/kalshi_odds.py ]; then python3 .github/kalshi/kalshi_odds.py "$RUNNER_TEMP/raw.json" draft/kalshi.json; else echo "No script yet"; fi
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -d .github/kalshi ]; then git add .github/kalshi; fi
+          if [ -f draft/kalshi.json ]; then git add draft/kalshi.json; fi
+          git diff --staged --quiet || git commit -m "Kalshi odds $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git pull --rebase -q && git push
