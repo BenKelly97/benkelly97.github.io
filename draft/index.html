@@ -68,6 +68,11 @@ header .sub { color: var(--muted); max-width: 52ch; margin: 6px 0 0; }
 .seat.onclock { border-color: var(--clock); box-shadow: inset 0 0 0 1px var(--clock); }
 .seat.me .name::after { content: "YOU"; font-family: var(--mono); font-size: .65rem; margin-left: 6px; padding: 1px 5px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); vertical-align: 2px; }
 .seat button { padding: 3px 9px; font-size: .82rem; }
+.seat .odds { font-family: var(--mono); font-size: .82rem; }
+.seat .odds small { display: block; color: var(--muted); font-size: .7rem; }
+.oddsnote { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
+.oddsnote a { color: inherit; }
+.card .codds { display: block; font-family: var(--mono); font-size: .7rem; color: var(--muted); font-weight: 500; margin-top: 2px; }
 
 .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 16px; margin-bottom: 14px; }
 .tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: .9rem; color: var(--muted); }
@@ -167,6 +172,7 @@ details.commish > summary { cursor: pointer; padding: 14px 18px; font-family: va
   <section>
     <div class="section-head"><h2>Draft order</h2><span id="seatHint" class="tools"></span></div>
     <div id="seats" class="seats"></div>
+    <p id="oddsNote" class="oddsnote" hidden></p>
   </section>
   <section>
     <div class="section-head">
@@ -350,6 +356,43 @@ function allCands() {
 }
 const candById = id => allCands().find(c => c.id === id);
 const normName = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+// ---------- Kalshi odds ----------
+// kalshi.json (next to this page) holds Kalshi's price for each candidate in the 2028 Democratic
+// nominee market; the "Kalshi odds" workflow in this repository rewrites it every 30 minutes.
+// Names match ignoring case and punctuation, then on first and last name ("Dwayne The Rock Johnson").
+const ODDS_ALIASES = { aoc: "alexandria ocasio cortez" };
+let odds = null, oddsFor = () => null;
+function buildOddsIndex(prices) {
+  const exact = new Map(), firstLast = new Map();
+  for (const [name, p] of Object.entries(prices || {})) {
+    const n = normName(name), w = n.split(" ");
+    exact.set(n.replace(/ /g, ""), { name, p });
+    const fl = w[0] + " " + w[w.length - 1];
+    firstLast.set(fl, firstLast.has(fl) ? null : { name, p });
+  }
+  return name => {
+    const n = ODDS_ALIASES[normName(name)] || normName(name), w = n.split(" ");
+    return exact.get(n.replace(/ /g, "")) || (w.length > 1 && firstLast.get(w[0] + " " + w[w.length - 1])) || null;
+  };
+}
+function loadOdds() {
+  fetch("kalshi.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null).then(d => {
+    if (!d || !d.prices) return;
+    odds = d; oddsFor = buildOddsIndex(d.prices); render();
+  }).catch(() => {});
+}
+const pct = p => (p * 100).toFixed(1) + "%";
+function drafterOdds(id) {
+  let sum = 0, missing = 0, count = 0;
+  for (const p of picks.values()) {
+    if (p.drafter !== id) continue;
+    count++;
+    const o = oddsFor(candById(p.cand)?.name || p.writeIn || "");
+    if (o) sum += o.p; else missing++;
+  }
+  return { sum, missing, count };
+}
 const drafterName = id => cfg().drafters.find(d => d.id === id)?.name || "Someone";
 const pickKey = n => "p" + String(n).padStart(3, "0");
 function phase() {
@@ -421,9 +464,17 @@ function renderSeats() {
     let state;
     if (isMe) state = `<span>Your seat</span><button type="button" data-act="switch">Switch</button>`;
     else state = me ? "" : `<button type="button" class="primary" data-act="claim" data-id="${d.id}" ${ready ? "" : "disabled"}>This is me</button>`;
+    const o = odds ? drafterOdds(d.id) : null;
+    const oddsLine = o && o.count ? `<div class="odds">Kalshi ${pct(o.sum)}${o.missing ? `<small>${o.missing} pick${o.missing > 1 ? "s" : ""} not on Kalshi</small>` : ""}</div>` : "";
     return `<div class="seat ${clockId === d.id ? "onclock" : ""} ${isMe ? "me" : ""}">
-      <div class="pos">POSITION ${idx + 1}</div><div class="name">${esc(d.name)}</div><div class="state">${state}</div></div>`;
+      <div class="pos">POSITION ${idx + 1}</div><div class="name">${esc(d.name)}</div>${oddsLine}<div class="state">${state}</div></div>`;
   }).join(""));
+  const note = $("#oddsNote");
+  note.hidden = !odds;
+  if (odds) {
+    const t = new Date(odds.updated).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    note.innerHTML = `Kalshi: each drafter's chance that one of their picks is the 2028 Democratic nominee, the sum of their picks' prices on <a href="${esc(odds.url)}" target="_blank" rel="noopener">Kalshi</a>. Candidates with no Kalshi market count as 0. Prices last changed ${esc(t)} ET; checked every 30 minutes.`;
+  }
 }
 
 function renderWall() {
@@ -460,7 +511,7 @@ function renderWall() {
       <button type="button" data-act="photo" data-id="${x.id}">Replace</button>
       <button type="button" class="${armed === "rm-" + x.id ? "armed" : "danger"}" data-act="remove" data-id="${x.id}">${armed === "rm-" + x.id ? "Confirm" : "Remove"}</button></div></div>` : "";
     return `<div class="card ${p ? "drafted" : ""} ${pickable ? "pickable" : ""}" ${pickable ? `data-act="pick" data-id="${x.id}" role="button" tabindex="0" aria-label="Draft ${esc(x.name)}"` : ""}>
-      <div class="photo">${photo}</div><div class="cname">${esc(x.name)}${x.writeIn ? `<span class="wtag">Write-in</span>` : ""}</div>${edit}${ribbon}${conf}</div>`;
+      <div class="photo">${photo}</div><div class="cname">${esc(x.name)}${x.writeIn ? `<span class="wtag">Write-in</span>` : ""}${odds ? `<span class="codds">${oddsFor(x.name) ? "Kalshi " + pct(oddsFor(x.name).p) : "Not on Kalshi"}</span>` : ""}</div>${edit}${ribbon}${conf}</div>`;
   }).join(""));
 }
 
@@ -820,6 +871,8 @@ function markLoaded(key) {
 }
 function boot() {
   render();
+  loadOdds();
+  setInterval(loadOdds, 5 * 60 * 1000);
   if (!firebaseConfig?.apiKey) { connNote = "This site isn't connected to its database yet. Add the Firebase settings to firebase-config.js."; renderNotice(); return; }
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
