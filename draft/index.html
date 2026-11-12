@@ -129,6 +129,8 @@ table.board { border-collapse: collapse; width: 100%; min-width: 680px; table-la
 .slot img, .slot .ph { width: 36px; height: 45px; border-radius: 4px; object-fit: cover; flex: none; background: var(--taken); }
 .slot .n { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
 .slot .c { font-weight: 600; font-size: .86rem; line-height: 1.2; overflow-wrap: anywhere; }
+.slot .o { font-family: var(--mono); font-size: .7rem; color: var(--muted); margin-top: 2px; }
+.board thead th .hodds { display: block; font-family: var(--mono); font-size: .75rem; font-weight: 500; color: var(--muted); margin-top: 2px; }
 td.now { background: color-mix(in srgb, var(--clock) 22%, transparent); }
 
 .rules { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
@@ -518,16 +520,19 @@ function renderWall() {
 function renderBoard() {
   const c = cfg(), R = rounds(), t = totalPicks(), i = currentIndex(), ph = phase();
   $("#boardMeta").textContent = ready ? `${picks.size} of ${t} picks` : "";
-  let h = `<thead><tr><th class="rd">Round</th>${c.drafters.map(d => `<th>${esc(d.name)}</th>`).join("")}</tr></thead><tbody>`;
+  const headOdds = d => { if (!odds) return ""; const o = drafterOdds(d.id); return o.count ? `<span class="hodds">Kalshi ${pct(o.sum)}</span>` : ""; };
+  let h = `<thead><tr><th class="rd">Round</th>${c.drafters.map(d => `<th>${esc(d.name)}${headOdds(d)}</th>`).join("")}</tr></thead><tbody>`;
   for (let r = 0; r < R; r++) {
     h += `<tr><th class="rd">Rd ${r + 1}<span>${r % 2 ? "←" : "→"}</span></th>`;
     for (let pos = 0; pos < N; pos++) {
       const n = r * N + (r % 2 ? N - 1 - pos : pos);
       if (n >= t) { h += `<td></td>`; continue; }
       const p = picks.get(n), cand = p && candById(p.cand);
+      const po = p && odds ? oddsFor(cand?.name || p.writeIn || "") : null;
+      const oddsTxt = p && odds ? `<div class="o">${po ? "Kalshi " + pct(po.p) : "Not on Kalshi"}</div>` : "";
       const now = ready && (ph === "live" || ph === "paused") && n === i;
       h += `<td class="${now ? "now" : ""}"><div class="slot">${p ? (cand?.img ? `<img src="${esc(cand.img)}" alt="">` : `<span class="ph"></span>`) : ""}
-        <div><div class="n">#${n + 1}</div><div class="c">${p ? esc(cand?.name || "Unknown candidate") : now ? "On the clock" : ""}</div></div></div></td>`;
+        <div><div class="n">#${n + 1}</div><div class="c">${p ? esc(cand?.name || "Unknown candidate") : now ? "On the clock" : ""}</div>${oddsTxt}</div></div></td>`;
     }
     h += `</tr>`;
   }
