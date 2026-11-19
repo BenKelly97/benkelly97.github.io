@@ -94,6 +94,14 @@ dialog.oddsdlg::backdrop { background: rgba(5, 8, 20, .6); }
 .ochart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .ochart .area { fill: var(--accent); opacity: .1; }
 .ochart .xhair { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.ochart .postdraft { fill: var(--clock); opacity: .12; }
+.ochart .draftline { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.ochart .draftlabel { fill: var(--ink); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.ochart .draftdot { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.ostats .stat.draft b { color: var(--ink); }
+.ostats .stat.draft { padding-left: 10px; border-left: 3px solid var(--clock); }
+.otwrap { overflow-x: auto; }
+.otable th.num { white-space: nowrap; }
 .ochart .dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
 .otable { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .otable th { text-align: left; font-size: .72rem; font-family: var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 4px 0; border-bottom: 1px solid var(--line); }
@@ -802,6 +810,7 @@ framer.addEventListener("click", async e => {
 // "Kalshi odds" workflow. Today's point comes from kalshi.json, which updates every 30 minutes.
 // A team's line is the sum of its picks' prices each day, the same way the board totals teams now.
 const DAY_MS = 86400000;
+const DRAFT_DAY = Date.UTC(2026, 10, 6); // Draft Day: Nov 6, 2026. Charts mark it and measure change from its daily price.
 let hist = null, histFor = () => null, histLoading = null, oddsView = null, oddsRange = 365;
 function loadHistory() {
   if (!histLoading) histLoading = fetch("kalshi-history.json", { cache: "no-cache" }).then(r => r.ok ? r.json() : null).then(d => {
@@ -874,16 +883,18 @@ function drawOdds() {
   const now = v.pts.length ? v.pts[v.pts.length - 1] : null, start = pts[0];
   const hi = pts.reduce((m, p) => p.v > m.v ? p : m, pts[0] || { v: 0 });
   const rangeLabel = oddsRange ? { 30: "1 month", 91: "3 months", 182: "6 months", 365: "1 year" }[oddsRange] : "all time";
+  const atDraft = valueAt(v.pts, DRAFT_DAY);
   $("#oddsStats").innerHTML = now ? `
     <div class="stat"><b>${fmtPct(now.v)}</b><span>Now</span></div>
+    <div class="stat draft"><b>${fmtPts(now.v - atDraft)}</b><span>Since Draft Day (${fmtPct(atDraft)} on Nov 6)</span></div>
     <div class="stat"><b>${fmtPts(now.v - start.v)}</b><span>Change, ${rangeLabel}</span></div>
     <div class="stat"><b>${fmtPct(hi.v)}</b><span>High, ${esc(fmtDay(hi.t))}</span></div>` : "";
   if (v.kind === "team") {
     const rows = v.members.map(m => {
-      const cur = m.pts.length ? m.pts[m.pts.length - 1].v : 0, was = valueAt(m.pts, start?.t ?? 0);
-      return `<tr><td>#${m.n + 1} ${esc(m.name)}</td><td class="num">${m.listed ? fmtPct(cur) : "Not on Kalshi"}</td><td class="num">${m.listed && start ? fmtPts(cur - was) : "–"}</td></tr>`;
+      const cur = m.pts.length ? m.pts[m.pts.length - 1].v : 0, was = valueAt(m.pts, start?.t ?? 0), drafted = valueAt(m.pts, DRAFT_DAY);
+      return `<tr><td>#${m.n + 1} ${esc(m.name)}</td><td class="num">${m.listed ? fmtPct(cur) : "Not on Kalshi"}</td><td class="num">${m.listed ? fmtPts(cur - drafted) : "–"}</td><td class="num">${m.listed && start ? fmtPts(cur - was) : "–"}</td></tr>`;
     }).join("");
-    $("#oddsTable").innerHTML = `<table class="otable"><thead><tr><th>Pick</th><th class="num">Now</th><th class="num">Change, ${rangeLabel}</th></tr></thead><tbody>${rows}</tbody></table>`;
+    $("#oddsTable").innerHTML = `<div class="otwrap"><table class="otable"><thead><tr><th>Pick</th><th class="num">Now</th><th class="num">Since Draft Day</th><th class="num">Change, ${rangeLabel}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   } else $("#oddsTable").innerHTML = "";
   const upd = odds?.updated ? new Date(odds.updated).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " ET" : "";
   $("#oddsSource").innerHTML = `Daily prices from <a href="${esc(odds?.url || "https://kalshi.com/markets/kxpresnomd")}" target="_blank" rel="noopener">Kalshi</a>'s 2028 Democratic nominee market${upd ? `; latest point ${esc(upd)}` : ""}.${v.kind === "team" ? " A pick counts from the day its Kalshi market opened. Picks with no Kalshi market count as 0." : ""}`;
@@ -911,8 +922,18 @@ function drawLine(pts) {
   const d = pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
   const area = `${d}L${x(t1).toFixed(1)},${y(0)}L${x(t0).toFixed(1)},${y(0)}Z`;
   const last = pts[pts.length - 1];
-  $("#oddsChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(oddsView.title)}: ${fmtPct(pts[0].v)} on ${esc(fmtDay(t0))}, ${fmtPct(last.v)} on ${esc(fmtDay(t1))}">
-    ${g}<path class="area" d="${area}"/><path class="line" d="${d}"/>
+  // Draft Day: shade the stretch since the draft and mark where it started.
+  const atDraft = valueAt(oddsView.pts, DRAFT_DAY);
+  let draft = "";
+  if (DRAFT_DAY >= t0 && DRAFT_DAY <= t1) {
+    const dx = x(DRAFT_DAY), nearRight = dx > W - 110;
+    draft = `<rect class="postdraft" x="${dx}" y="${T}" width="${W - Rp - dx}" height="${H - T - B}"/>
+      <line class="draftline" x1="${dx}" x2="${dx}" y1="${T}" y2="${H - B}"/>
+      <text class="draftlabel" x="${nearRight ? dx - 6 : dx + 6}" y="${T + 12}" text-anchor="${nearRight ? "end" : "start"}">Draft Day · ${fmtPct(atDraft)}</text>
+      <circle class="draftdot" r="4" cx="${dx}" cy="${y(atDraft)}"/>`;
+  }
+  $("#oddsChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(oddsView.title)}: ${fmtPct(pts[0].v)} on ${esc(fmtDay(t0))}, ${fmtPct(atDraft)} on Draft Day, ${fmtPct(last.v)} on ${esc(fmtDay(t1))}">
+    ${g}${draft}<path class="area" d="${area}"/><path class="line" d="${d}"/>
     <line class="xhair" id="oxh" x1="0" x2="0" y1="${T}" y2="${H - B}" visibility="hidden"/>
     <circle class="dot" id="odot" r="4.5" cx="${x(last.t)}" cy="${y(last.v)}"/>
     <rect id="ohit" x="${L}" y="0" width="${W - L - Rp}" height="${H}" fill="transparent"/></svg>`;
@@ -920,9 +941,9 @@ function drawLine(pts) {
   const show = p => {
     xh.setAttribute("x1", x(p.t)); xh.setAttribute("x2", x(p.t)); xh.setAttribute("visibility", "visible");
     dot.setAttribute("cx", x(p.t)); dot.setAttribute("cy", y(p.v));
-    $("#oddsReadout").textContent = `${fmtDay(p.t)} · ${fmtPct(p.v)}`;
+    $("#oddsReadout").textContent = `${fmtDay(p.t)} · ${fmtPct(p.v)}${p.t > DRAFT_DAY ? ` · ${fmtPts(p.v - atDraft)} since Draft Day` : ""}`;
   };
-  const reset = () => { xh.setAttribute("visibility", "hidden"); dot.setAttribute("cx", x(last.t)); dot.setAttribute("cy", y(last.v)); $("#oddsReadout").textContent = `${fmtDay(last.t)} · ${fmtPct(last.v)} (latest)`; };
+  const reset = () => { xh.setAttribute("visibility", "hidden"); dot.setAttribute("cx", x(last.t)); dot.setAttribute("cy", y(last.v)); $("#oddsReadout").textContent = `${fmtDay(last.t)} · ${fmtPct(last.v)} (latest)${last.t > DRAFT_DAY ? ` · ${fmtPts(last.v - atDraft)} since Draft Day` : ""}`; };
   svg.addEventListener("pointermove", e => {
     const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width;
     const t = t0 + (Math.min(Math.max(sx, L), W - Rp) - L) / (W - L - Rp) * (t1 - t0);
