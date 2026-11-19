@@ -3,6 +3,7 @@ name: Kalshi odds
 # Saves Kalshi prices for the 2028 Democratic nominee (event KXPRESNOMD-28) to
 # draft/kalshi.json for the draft page. Kalshi's API does not allow other sites to
 # read it from a visitor's browser, so this job fetches it and the page reads the file.
+# Once a day it also rebuilds draft/kalshi-history.json (daily prices) for the odds charts.
 
 on:
   schedule:
@@ -40,11 +41,16 @@ jobs:
         run: |
           if [ -f .github/kalshi/kalshi_odds.py ]; then python3 .github/kalshi/kalshi_odds.py "$RUNNER_TEMP/raw.json" draft/kalshi.json; else echo "No script yet"; fi
 
+      - name: Update draft/kalshi-history.json (once a day)
+        run: |
+          if [ -f .github/kalshi/kalshi_history.py ]; then python3 .github/kalshi/kalshi_history.py "$RUNNER_TEMP/raw.json" draft/kalshi-history.json || echo "History update failed; keeping the old file"; fi
+
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ -d .github/kalshi ]; then git add .github/kalshi; fi
           if [ -f draft/kalshi.json ]; then git add draft/kalshi.json; fi
+          if [ -f draft/kalshi-history.json ]; then git add draft/kalshi-history.json; fi
           git diff --staged --quiet || git commit -m "Kalshi odds $(date -u +'%Y-%m-%d %H:%M') UTC"
           git pull --rebase -q && git push
