@@ -1,7 +1,7 @@
 {
  "event": "KXPRESNOMD-28",
  "url": "https://kalshi.com/markets/kxpresnomd",
- "updated": "2026-11-22T23:34:05Z",
+ "updated": "2026-11-23T03:59:44Z",
  "prices": {
   "Jon Ossoff": 0.235,
   "Alexandria Ocasio-Cortez": 0.145,
@@ -32,7 +32,6 @@
   "Adam Hamilton": 0.0025,
   "Amy Klobuchar": 0.0025,
   "Barack Obama": 0.0025,
-  "Shawn Fain": 0.0025,
   "Andrew Yang": 0.0015,
   "Elizabeth Warren": 0.0015,
   "Hakeem Jeffries": 0.0015,
@@ -40,6 +39,7 @@
   "Jon Stewart": 0.0015,
   "Mikie Sherrill": 0.0015,
   "Roy Cooper": 0.0015,
+  "Shawn Fain": 0.0015,
   "Sherrod Brown": 0.0015,
   "Zohran Mamdani": 0.0015,
   "Aaron Ford": 0.001,
