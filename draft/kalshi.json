@@ -1,18 +1,18 @@
 {
  "event": "KXPRESNOMD-28",
  "url": "https://kalshi.com/markets/kxpresnomd",
- "updated": "2026-11-24T22:44:43Z",
+ "updated": "2026-11-25T05:24:13Z",
  "prices": {
   "Jon Ossoff": 0.225,
   "Alexandria Ocasio-Cortez": 0.165,
   "Gavin Newsom": 0.105,
   "Pete Buttigieg": 0.0555,
   "Kamala Harris": 0.0495,
-  "Josh Shapiro": 0.0485,
+  "Josh Shapiro": 0.0475,
   "Raphael Warnock": 0.0395,
   "Andy Beshear": 0.0375,
-  "J.B. Pritzker": 0.0305,
   "Mark Kelly": 0.0265,
+  "J.B. Pritzker": 0.0255,
   "Wes Moore": 0.0235,
   "Rahm Emanuel": 0.0225,
   "Ro Khanna": 0.0155,
@@ -42,6 +42,7 @@
   "Mikie Sherrill": 0.0015,
   "Mitch Landrieu": 0.0015,
   "Roy Cooper": 0.0015,
+  "Scott Colom": 0.0015,
   "Shawn Fain": 0.0015,
   "Sherrod Brown": 0.0015,
   "Zohran Mamdani": 0.0015,
@@ -70,7 +71,6 @@
   "Phil Murphy": 0.001,
   "Rob Sand": 0.001,
   "Sara Nelson": 0.001,
-  "Scott Colom": 0.001,
   "Stacey Abrams": 0.001,
   "Tim Walz": 0.001
  }
