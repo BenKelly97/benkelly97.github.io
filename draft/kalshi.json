@@ -1,7 +1,7 @@
 {
  "event": "KXPRESNOMD-28",
  "url": "https://kalshi.com/markets/kxpresnomd",
- "updated": "2026-11-27T20:17:15Z",
+ "updated": "2026-11-28T02:56:44Z",
  "prices": {
   "Jon Ossoff": 0.235,
   "Alexandria Ocasio-Cortez": 0.165,
@@ -18,7 +18,6 @@
   "Ro Khanna": 0.0155,
   "James Talarico": 0.0145,
   "Abdul El-Sayed": 0.0105,
-  "Don Lemon": 0.01,
   "Gretchen Whitmer": 0.0085,
   "Michelle Obama": 0.0085,
   "Chris Van Hollen": 0.0075,
@@ -55,6 +54,7 @@
   "Chris Pappas": 0.001,
   "David Jolly": 0.001,
   "Dean Phillips": 0.001,
+  "Don Lemon": 0.001,
   "Gina Raimondo": 0.001,
   "Graham Platner": 0.001,
   "Hillary Clinton": 0.001,
